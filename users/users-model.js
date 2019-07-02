@@ -16,8 +16,10 @@ function find() {
   return db("users");
 }
 
-function findUser(githubId) {
-  return db("users").where(githubId);
+async function findUser(githubId) {
+  return db("users")
+    .where({ githubId })
+    .first();
 }
 
 function findById(id) {

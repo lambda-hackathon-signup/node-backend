@@ -1,46 +1,13 @@
 const express = require("express");
 const passport = require("passport");
 const Strategy = require("passport-github").Strategy;
+const cookieSession = require("cookie-session");
 
 const Users = require("../users/users-model.js");
 
-passport.use(
-  new Strategy(
-    {
-      clientID: process.env["GITHUB_CLIENT_ID"],
-      clientSecret: process.env["GITHUB_CLIENT_SECRET"],
-      callbackURL: "/auth/github/callback"
-    },
-    function(accessToken, refreshToken, profile, done) {
-      console.log("this is a profile:", profile);
-      // profile.id, profile.displayName, profile.username
-      let profileInfo = {
-        githubId: profile.id,
-        name: profile.displayName,
-        username: profile.username
-      };
-      if (Users.findUser(profileInfo.githubId)) {
-        console.log(
-          `The profile with the username ${profileInfo.username} already exists`
-        );
-        done(null, profileInfo);
-      } else {
-        Users.add(profileInfo)
-          .then(user => {
-            done(null, user);
-          })
-          .catch(err => {
-            console.log("Error saving user");
-          });
-      }
-
-      // return done(null, profile);
-    }
-  )
-);
-
 // Configure Passport authenticated session persistence.
 passport.serializeUser((user, done) => {
+  // console.log(user.id);
   done(null, user.id);
 });
 
@@ -50,19 +17,53 @@ passport.deserializeUser((id, done) => {
   });
 });
 
+passport.use(
+  new Strategy(
+    {
+      clientID: process.env["GITHUB_CLIENT_ID"],
+      clientSecret: process.env["GITHUB_CLIENT_SECRET"],
+      callbackURL: "/auth/github/callback"
+    },
+    (accessToken, refreshToken, profile, done) => {
+      let profileInfo = {
+        githubId: profile.id,
+        name: profile.displayName,
+        username: profile.username
+      };
+      const ghId = profileInfo.githubId;
+      Users.findUser(ghId).then(currentUser => {
+        if (currentUser) {
+          done(null, currentUser);
+        } else {
+          Users.add(profileInfo)
+            .then(user => {
+              done(null, user);
+            })
+            .catch(err => {
+              console.log("Error saving user");
+            });
+        }
+      });
+    }
+  )
+);
+
 const server = express();
 
 server.use(express.json());
+
+server.use(
+  cookieSession({
+    maxAge: 24 * 60 * 60 * 1000,
+    keys: [process.env["COOKIE_KEY"]]
+  })
+);
 
 // Configure view engine to render EJS templates.
 server.set("views", __dirname + "/views");
 server.set("view engine", "ejs");
 
-// Use application-level middleware for common functionality, including
-// logging, parsing, and session handling.
 server.use(require("morgan")("combined"));
-server.use(require("cookie-parser")());
-server.use(require("body-parser").urlencoded({ extended: true }));
 
 server.use(passport.initialize());
 server.use(passport.session());
@@ -85,13 +86,8 @@ server.get(
   }
 );
 
-server.get(
-  "/profile",
-  require("connect-ensure-login").ensureLoggedIn(),
-  (req, res) => {
-    // console.log("user info:", req.user);
-    res.render("profile", { user: req.user });
-  }
-);
+server.get("/profile", (req, res) => {
+  res.render("profile", { user: req.user });
+});
 
 module.exports = server;
