@@ -22,7 +22,8 @@ passport.use(
     {
       clientID: process.env["GITHUB_CLIENT_ID"],
       clientSecret: process.env["GITHUB_CLIENT_SECRET"],
-      callbackURL: "/auth/github/callback"
+      callbackURL:
+        "https://lambda-projects-hackathon.herokuapp.com/auth/github/callback"
     },
     (accessToken, refreshToken, profile, done) => {
       let profileInfo = {
