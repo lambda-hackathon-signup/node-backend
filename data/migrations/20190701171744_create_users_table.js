@@ -18,9 +18,9 @@ exports.up = function(knex) {
         .integer("user_id")
         .unsigned()
         .notNullable()
-        .references("githubId")
+        .references("id")
         .inTable("users")
-        // .onDelete("RESTRICT")
+        .onDelete("RESTRICT")
         .onUpdate("CASCADE");
     });
 };
