@@ -2,6 +2,8 @@ const express = require("express");
 const passport = require("passport");
 const Strategy = require("passport-github").Strategy;
 
+const Users = require("../users/users-model.js");
+
 passport.use(
   new Strategy(
     {
@@ -9,32 +11,43 @@ passport.use(
       clientSecret: process.env["GITHUB_CLIENT_SECRET"],
       callbackURL: "/auth/github/callback"
     },
-    function(accessToken, refreshToken, profile, cb) {
-      // In this example, the user's Facebook profile is supplied as the user
-      // record.  In a production-quality application, the Facebook profile should
-      // be associated with a user record in the application's database, which
-      // allows for account linking and authentication with other identity
-      // providers.
-      return cb(null, profile);
+    function(accessToken, refreshToken, profile, done) {
+      console.log("this is a profile:", profile);
+      // profile.id, profile.displayName, profile.username
+      let profileInfo = {
+        githubId: profile.id,
+        name: profile.displayName,
+        username: profile.username
+      };
+      if (Users.findUser(profileInfo.githubId)) {
+        console.log(
+          `The profile with the username ${profileInfo.username} already exists`
+        );
+        done(null, profileInfo);
+      } else {
+        Users.add(profileInfo)
+          .then(user => {
+            done(null, user);
+          })
+          .catch(err => {
+            console.log("Error saving user");
+          });
+      }
+
+      // return done(null, profile);
     }
   )
 );
 
 // Configure Passport authenticated session persistence.
-//
-// In order to restore authentication state across HTTP requests, Passport needs
-// to serialize users into and deserialize users out of the session.  In a
-// production-quality application, this would typically be as simple as
-// supplying the user ID when serializing, and querying the user record by ID
-// from the database when deserializing.  However, due to the fact that this
-// example does not have a database, the complete Facebook profile is serialized
-// and deserialized.
-passport.serializeUser(function(user, cb) {
-  cb(null, user);
+passport.serializeUser((user, done) => {
+  done(null, user.id);
 });
 
-passport.deserializeUser(function(obj, cb) {
-  cb(null, obj);
+passport.deserializeUser((id, done) => {
+  Users.findById(id).then(user => {
+    done(null, user);
+  });
 });
 
 const server = express();
@@ -50,13 +63,6 @@ server.set("view engine", "ejs");
 server.use(require("morgan")("combined"));
 server.use(require("cookie-parser")());
 server.use(require("body-parser").urlencoded({ extended: true }));
-server.use(
-  require("express-session")({
-    secret: "keyboard cat",
-    resave: true,
-    saveUninitialized: true
-  })
-);
 
 server.use(passport.initialize());
 server.use(passport.session());
@@ -83,7 +89,7 @@ server.get(
   "/profile",
   require("connect-ensure-login").ensureLoggedIn(),
   (req, res) => {
-    console.log(req.user);
+    // console.log("user info:", req.user);
     res.render("profile", { user: req.user });
   }
 );

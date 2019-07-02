@@ -20,7 +20,7 @@ exports.up = function(knex) {
         .notNullable()
         .references("githubId")
         .inTable("users")
-        .onDelete("RESTRICT")
+        // .onDelete("RESTRICT")
         .onUpdate("CASCADE");
     });
 };
